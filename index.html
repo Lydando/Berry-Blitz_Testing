@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+        <!-- App name and theme color -->
+    <meta name="theme-color" content="#6c1aff" />
+    <meta name="application-name" content="Berry Blitz" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Berry Blitz" />
+
+    <!-- Manifest -->
+    <link rel="manifest" href="manifest.json" />
+
+    <!-- Icons for app -->
+    <link rel="icon" type="image/png" sizes="192x192" href="public/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="public/icon-512.png" />
+    <link rel="apple-touch-icon" href="public/icon-192.png" />
+
+    <script type="module" crossorigin src="public/assets/index-Cdy_on9X.js"></script>
+    <link rel="stylesheet" crossorigin href="public/assets/index-CkRX1Kq5.css" />
+  </head>
+  
+  <body>
+    <div id="root"></div> 
+<script> 
+  if ('serviceWorker' in navigator) { 
+  window.addEventListener('load', () => { 
+    navigator.serviceWorker.register('service-worker.js') 
+      .then(reg => console.log('Service worker registered:', reg)) 
+      .catch(err => console.log('Service worker not registered:', err)); }); } 
+</script>
+    
+   <!-- Mute/Unmute Button and more of music related stuff things -->
+<script>
+let userInteracted = false;
+let isMuted = false;
+
+const muteButton = document.getElementById('muteButton');
+muteButton.addEventListener('click', () => {
+    const bg = window.bgMusic;
+    if (!bg) return;
+
+    // Toggle mute state
+    isMuted = !isMuted;
+    bg.muted = isMuted;
+
+    // Also mute hit and success sounds from React state if available
+    const state = window.ReactState; // your React getter
+    const hit = state?.hitSound;
+    const success = state?.successSound;
+    if (hit) hit.muted = isMuted;
+    if (success) success.muted = isMuted;
+
+    // Pause/resume background music if needed
+    if (isMuted) {
+        if (!bg.paused) bg.pause();
+    } else if (userInteracted) {
+        bg.play().catch(err => console.log("Resume bgMusic failed:", err));
+    }
+
+    muteButton.innerText = isMuted ? "Unmute" : "Mute";
+});
+</script>
+
+    <script>
+  // Create a player object if not already defined
+  // (Replace this with your actual player variable if it already exists)
+  window.player = window.player || { x: 0, y: 0, speed: 5 };
+
+  // Track key presses
+  const keys = {};
+
+  // Key press tracking
+  window.addEventListener("keydown", (e) => {
+    keys[e.key.toLowerCase()] = true;
+  });
+  window.addEventListener("keyup", (e) => {
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // Movement loop
+  function updatePlayerMovement() {
+    const p = window.player;
+    const s = p.speed;
+
+    if (keys["w"] || keys["arrowup"]) p.y -= s;
+    if (keys["s"] || keys["arrowdown"]) p.y += s;
+    if (keys["a"] || keys["arrowleft"]) p.x -= s;
+    if (keys["d"] || keys["arrowright"]) p.x += s;
+
+    // Example: update the player’s visual position (if it’s an HTML element)
+    const playerEl = document.getElementById("player");
+    if (playerEl) {
+      playerEl.style.transform = `translate(${p.x}px, ${p.y}px)`;
+    }
+
+    requestAnimationFrame(updatePlayerMovement);
+  }
+
+  updatePlayerMovement();
+</script>
+    
+  </body>
+</html>
