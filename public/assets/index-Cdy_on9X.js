@@ -166,25 +166,36 @@ generateBerries() {
 }
 spawnInitialPredator(){this.spawnPredator()}spawnPredator(){let t,n=0;const r=100,l=60,i=this.canvas.height-this.gameAreaTop;do t={x:Math.random()*(this.canvas.width-30)+15,y:this.gameAreaTop+Math.random()*(i-30)+15},n++;while(n<r&&this.getDistance(t,this.avatar.position)<l);const o=4+Math.floor(Math.random()*3),u=[{...t}];for(let c=0;c<o;c++){const m={x:30+Math.random()*(this.canvas.width-60),y:this.gameAreaTop+30+Math.random()*(i-60)};u.push(m)}u.push({...t});const s=this.basePredatorSpeed*(1+Math.min(.6,Math.floor(this.berriesCollected/5)*.05));this.predators.push({position:t,size:{x:28,y:28},speed:s,patrolPath:u,currentWaypointIndex:0,rotation:0})}isPositionBlocked(t,n){for(const r of this.obstacles)if(this.checkCollision({position:t,size:{x:n*2,y:n*2}},r))return!0;return!1}getDistance(t,n){const r=t.x-n.x,l=t.y-n.y;return Math.sqrt(r*r+l*l)}checkCollision(t,n){return t.position.x<n.position.x+n.size.x&&t.position.x+t.size.x>n.position.x&&t.position.y<n.position.y+n.size.y&&t.position.y+t.size.y>n.position.y}
 update(t, n) {
-    this.lastUpdate = Date.now();
-    const r = t / 1000; // delta in seconds
+  this.lastUpdate = Date.now();
+  const deltaSeconds = t / 1000;
 
-    // Use direction from Zd
-    const direction = this.zd.getDirection();
-    this.moveAvatar(direction, r);
+  // Use direction from Zd instance
+  const direction = this.zd.getDirection();
+  
+  // Stop movement if game just restarted and no input given
+  if (this.justRestarted) {
+    // Only move avatar if input given (direction != "none")
+    if (direction !== "none") {
+      this.moveAvatar(direction, deltaSeconds);
+      this.justRestarted = false; // input given, allow movement
+    }
+    // else do not move avatar (stop flicker)
+  } else {
+    this.moveAvatar(direction, deltaSeconds);
+  }
 
-    // Rest of the update logic
-    jr.getState().updateSurvivalTime();
-    this.updatePowerUps(t);
-    this.updatePredators(r);
-    this.checkCollisions();
-    this.checkBerrySpawning();
-    this.checkPredatorSpawning();
-    this.checkSpeedIncrease();
+  jr.getState().updateSurvivalTime();
+  this.updatePowerUps(t);
+  this.updatePredators(deltaSeconds);
+  this.checkCollisions();
+  this.checkBerrySpawning();
+  this.checkPredatorSpawning();
+  this.checkSpeedIncrease();
+
   if (this.reverseControlsActive && this.berriesCollected >= this.reverseStartScore + 5) {
     this.reverseControlsActive = false;
     console.log("🌀 Reverse controls deactivated!");
-  } 
+  }
 }
 updatePowerUps(t){this.powerUps.speedBoost=Math.max(0,this.powerUps.speedBoost-t),this.powerUps.invincibility=Math.max(0,this.powerUps.invincibility-t),this.powerUps.freeze=Math.max(0,this.powerUps.freeze-t)}moveAvatar(t,n){if(t==="none")return;const l=this.avatar.speed*(this.powerUps.speedBoost>0?1.2:1)*n;let i={...this.avatar.position};switch(t){case"up":i.y-=l,this.avatar.direction={x:0,y:-1};break;case"down":i.y+=l,this.avatar.direction={x:0,y:1};break;case"left":i.x-=l,this.avatar.direction={x:-1,y:0};break;case"right":i.x+=l,this.avatar.direction={x:1,y:0};break}if(i.x=Math.max(0,Math.min(this.canvas.width-this.avatar.size.x,i.x)),i.y=Math.max(this.gameAreaTop,Math.min(this.canvas.height-this.avatar.size.y,i.y)),this.powerUps.invincibility<=0){const o={...this.avatar,position:i};let u=!1;for(const s of this.obstacles)if(this.checkCollision(o,s)){u=!0,nl.getState().playHit(),jr.getState().endGame();return}u||(this.avatar.position=i)}else this.avatar.position=i}updatePredators(t){if(!(this.powerUps.freeze>0))for(const n of this.predators){const r=n.patrolPath[n.currentWaypointIndex],l=r.x-n.position.x,i=r.y-n.position.y,o=Math.sqrt(l*l+i*i);if(o<5)n.currentWaypointIndex=(n.currentWaypointIndex+1)%n.patrolPath.length;else{const u=l/o,s=i/o;n.position.x+=u*n.speed*t,n.position.y+=s*n.speed*t,n.rotation=Math.atan2(s,u)}}}checkCollisions(){const t=jr.getState(),n=nl.getState();for(const r of this.berries)if(!r.collected&&this.checkCollision(this.avatar,r))switch(r.collected=!0,this.berriesCollected++,this.berrySpawnCount++,n.playSuccess(),r.type){case"red":t.incrementScore();break;case"blue":t.incrementScore(),this.powerUps.speedBoost=1e4;break;case"white":t.incrementScore(),this.powerUps.invincibility=7e3;break;case"purple":t.incrementScore(),this.powerUps.freeze=5e3;break;case"gray":t.incrementScore(),setTimeout(()=>{this.addObstacles(2)},100);break;
 case "rainbow":  
@@ -333,34 +344,51 @@ checkBerrySpawning(){this.berries.filter(n=>!n.collected).length===0&&this.gener
       }
 
 }
-this.ctx.fillStyle=this.powerUps.freeze>0?"#666666":"#FF8800";for(const r of this.predators)this.ctx.save(),this.ctx.translate(r.position.x+r.size.x/2,r.position.y+r.size.y/2),this.ctx.rotate(r.rotation),this.ctx.beginPath(),this.ctx.moveTo(12,0),this.ctx.lineTo(-8,-8),this.ctx.lineTo(-8,8),this.ctx.closePath(),this.ctx.fill(),this.ctx.restore();const t=this.avatar.position.x+this.avatar.size.x/2,n=this.avatar.position.y+this.avatar.size.y/2;this.ctx.fillStyle=this.powerUps.invincibility>0?"#FFFF88":"#FFFFFF",this.ctx.beginPath(),this.ctx.arc(t,n,this.avatar.size.x/2,0,Math.PI*2),this.ctx.fill(),this.ctx.fillStyle=this.powerUps.speedBoost>0?"#00FFFF":"#4444FF",this.ctx.beginPath(),this.ctx.arc(t,n,this.avatar.size.x/3,0,Math.PI*2),this.ctx.fill()}reset(){const t=this.canvas.height-this.gameAreaTop;this.avatar.position={x:this.canvas.width/2,y:this.gameAreaTop+t/2},this.avatar.speed=this.baseAvatarSpeed,this.avatar.direction={x:0,y:0},this.berries=[],this.obstacles=[],this.predators=[],this.powerUps={speedBoost:0,invincibility:0,freeze:0},this.berriesCollected=0,this.berrySpawnCount=0,this.lastSpeedIncrease=0,this.gameStartTime=Date.now(),this.currentDirection="none",this.reverseControlsActive = false;this.reverseStartScore = 0;this.initializeGame()}handleResize(){this.avatar.position.x=Math.min(this.avatar.position.x,this.canvas.width-this.avatar.size.x),this.avatar.position.y=Math.max(this.gameAreaTop,Math.min(this.avatar.position.y,this.canvas.height-this.avatar.size.y))}getPowerUpStatus(){return{...this.powerUps}}}
+this.ctx.fillStyle=this.powerUps.freeze>0?"#666666":"#FF8800";for(const r of this.predators)this.ctx.save(),this.ctx.translate(r.position.x+r.size.x/2,r.position.y+r.size.y/2),this.ctx.rotate(r.rotation),this.ctx.beginPath(),this.ctx.moveTo(12,0),this.ctx.lineTo(-8,-8),this.ctx.lineTo(-8,8),this.ctx.closePath(),this.ctx.fill(),this.ctx.restore();const t=this.avatar.position.x+this.avatar.size.x/2,n=this.avatar.position.y+this.avatar.size.y/2;this.ctx.fillStyle=this.powerUps.invincibility>0?"#FFFF88":"#FFFFFF",this.ctx.beginPath(),this.ctx.arc(t,n,this.avatar.size.x/2,0,Math.PI*2),this.ctx.fill(),this.ctx.fillStyle=this.powerUps.speedBoost>0?"#00FFFF":"#4444FF",this.ctx.beginPath(),this.ctx.arc(t,n,this.avatar.size.x/3,0,Math.PI*2),this.ctx.fill()}
+  reset() {
+  const n = this.canvas.height - this.gameAreaTop;
+  this.avatar.position = { x: this.canvas.width / 2, y: this.gameAreaTop + n / 2 };
+  this.avatar.speed = this.baseAvatarSpeed;
+  this.avatar.direction = { x: 0, y: 0 };
+  this.berries = [];
+  this.obstacles = [];
+  this.predators = [];
+  this.powerUps = { speedBoost: 0, invincibility: 0, freeze: 0 };
+  this.berriesCollected = 0;
+  this.berrySpawnCount = 0;
+  this.lastSpeedIncrease = 0;
+  this.gameStartTime = Date.now();
+  this.currentDirection = "none";
+  this.reverseControlsActive = false;
+  this.reverseStartScore = 0;
+  this.justRestarted = true; // Flag to control initial movement and flicker
+  this.initializeGame();
+}handleResize(){this.avatar.position.x=Math.min(this.avatar.position.x,this.canvas.width-this.avatar.size.x),this.avatar.position.y=Math.max(this.gameAreaTop,Math.min(this.avatar.position.y,this.canvas.height-this.avatar.size.y))}getPowerUpStatus(){return{...this.powerUps}}}
 class Zd {
-  constructor(canvas, kdInstance){
+  constructor(canvas, kdInstance) {
     this.currentDirection = "none";
-    this.lastDirection = "none"; // ⚡ FIXED: added lastDirection tracking
+    this.lastDirection = "none"; // Track last direction for consistent behavior
     this.touchStartX = 0;
     this.touchStartY = 0;
     this.minSwipeDistance = 30;
-    this.keysPressed = {}; // for keyboard
+    this.keysPressed = {};
     this.canvas = canvas;
-    this.kd = kdInstance; // reference to Kd for reverseControlsActive
+    this.kd = kdInstance; // reference to Kd instance for reverse controls
     this.setupEventListeners();
   }
 
   setupEventListeners() {
-    this.canvas.addEventListener("touchstart", this.handleTouchStart.bind(this), {passive: false});
-    this.canvas.addEventListener("touchend", this.handleTouchEnd.bind(this), {passive: false});
-    this.canvas.addEventListener("touchmove", this.handleTouchMove.bind(this), {passive: false});
+    this.canvas.addEventListener("touchstart", this.handleTouchStart.bind(this), { passive: false });
+    this.canvas.addEventListener("touchend", this.handleTouchEnd.bind(this), { passive: false });
+    this.canvas.addEventListener("touchmove", this.handleTouchMove.bind(this), { passive: false });
     this.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
     this.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
     this.canvas.addEventListener("mousemove", this.handleMouseMove.bind(this));
 
-    // Keyboard events
     window.addEventListener("keydown", this.handleKeyDown.bind(this));
     window.addEventListener("keyup", this.handleKeyUp.bind(this));
   }
 
-  // --- Touch / Mouse methods ---
   handleTouchStart(e) {
     e.preventDefault();
     const touch = e.touches[0];
@@ -373,19 +401,16 @@ class Zd {
   handleTouchEnd(e) {
     e.preventDefault();
     const touch = e.changedTouches[0];
-    let dx = touch.clientX - this.touchStartX;
-    let dy = touch.clientY - this.touchStartY;
+    const dx = touch.clientX - this.touchStartX;
+    const dy = touch.clientY - this.touchStartY;
 
-    if (Math.sqrt(dx*dx + dy*dy) > this.minSwipeDistance) {
+    if (Math.sqrt(dx * dx + dy * dy) > this.minSwipeDistance) {
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
-
       let dir = absX > absY ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
 
-      // ⚡ FIXED: Update lastDirection
       this.lastDirection = dir;
 
-      // ⚡ FIXED: Apply reverse based on lastDirection
       this.currentDirection = this.kd.reverseControlsActive ? this.invertDirection(this.lastDirection) : this.lastDirection;
 
       console.log("Swipe detected:", this.currentDirection);
@@ -403,23 +428,19 @@ class Zd {
     const dx = e.clientX - this.touchStartX;
     const dy = e.clientY - this.touchStartY;
 
-    if (Math.sqrt(dx*dx + dy*dy) > this.minSwipeDistance) {
+    if (Math.sqrt(dx * dx + dy * dy) > this.minSwipeDistance) {
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
-
       let dir = absX > absY ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
 
-      // ⚡ FIXED: Update lastDirection
       this.lastDirection = dir;
 
-      // ⚡ FIXED: Apply reverse based on lastDirection
       this.currentDirection = this.kd.reverseControlsActive ? this.invertDirection(this.lastDirection) : this.lastDirection;
 
       console.log("Mouse swipe detected:", this.currentDirection);
     }
   }
 
-  // --- Keyboard methods ---
   handleKeyDown(e) {
     this.keysPressed[e.key.toLowerCase()] = true;
     this.updateDirectionFromKeys();
@@ -431,23 +452,21 @@ class Zd {
   }
 
   updateDirectionFromKeys() {
+    // Prioritize arrow keys or WASD keys
     let dir = "none";
+    if (this.keysPressed["arrowup"] || this.keysPressed["w"]) dir = "up";
+    else if (this.keysPressed["arrowdown"] || this.keysPressed["s"]) dir = "down";
+    else if (this.keysPressed["arrowleft"] || this.keysPressed["a"]) dir = "left";
+    else if (this.keysPressed["arrowright"] || this.keysPressed["d"]) dir = "right";
 
-    // ⚡ FIXED: Prioritize arrow keys if multiple pressed
-    if(this.keysPressed["arrowup"] || this.keysPressed["w"]) dir = "up";
-    else if(this.keysPressed["arrowdown"] || this.keysPressed["s"]) dir = "down";
-    else if(this.keysPressed["arrowleft"] || this.keysPressed["a"]) dir = "left";
-    else if(this.keysPressed["arrowright"] || this.keysPressed["d"]) dir = "right";
+    if (dir !== "none") this.lastDirection = dir;
 
-    // ⚡ FIXED: Update lastDirection if valid key pressed
-    if(dir !== "none") this.lastDirection = dir;
-
-    // ⚡ FIXED: Reverse controls always applied to lastDirection
+    // If no key pressed, keep lastDirection; apply reverse if active
     this.currentDirection = this.kd.reverseControlsActive ? this.invertDirection(this.lastDirection) : (dir !== "none" ? dir : this.lastDirection);
   }
 
   invertDirection(dir) {
-    switch(dir){
+    switch (dir) {
       case "up": return "down";
       case "down": return "up";
       case "left": return "right";
@@ -456,14 +475,26 @@ class Zd {
     }
   }
 
-  getDirection(){ return this.currentDirection; }
-  reset(){ 
-    this.currentDirection = "none"; 
-    this.lastDirection = "none"; 
+  getDirection() {
+    return this.currentDirection;
+  }
+
+  reset() {
+    this.currentDirection = "none";
+    this.lastDirection = "none";
   }
 }
 
-const Jd=({onGameEnd:e})=>{var k;const t=Z.useRef(null),n=Z.useRef(null),r=Z.useRef(null),l=Z.useRef(),i=Z.useRef(!1),{score:o,survivalTime:u,isGameOver:s,resetGame:c}=jr(),{updateStatistics:m}=ac(),{backgroundMusic:p,isMuted:h,toggleMute:S}=nl(),[x,y]=Z.useState(!1),[L,f]=Z.useState(!1);Z.useEffect(()=>{const C=t.current;if(!C)return;const _=new Kd(C);n.current=_;const P=new Zd(C);return r.current=P,console.log("Game initialized"),()=>{l.current&&cancelAnimationFrame(l.current)}},[]),Z.useEffect(()=>{i.current=x,p&&!h&&!x&&!s?p.play().catch(console.log):p&&p.pause()},[p,h,x,s]),Z.useEffect(()=>{s&&!L&&(f(!0),m(o,u),p&&(p.pause(),p.currentTime=0))},[s,L,o,u,m,p]),Z.useEffect(()=>{if(!n.current||!r.current)return;let C=performance.now();const _=P=>{const U=Math.min(P-C,100);if(C=P,!i.current&&!s&&n.current&&r.current){const M=r.current.getDirection();n.current.update(U,M),n.current.render()}s||(l.current=requestAnimationFrame(_))};return l.current=requestAnimationFrame(_),()=>{l.current&&cancelAnimationFrame(l.current)}},[s]);const a=()=>{f(!1),c(),n.current&&n.current.reset(),p&&!h&&(p.currentTime=0,p.play().catch(console.log))},d=()=>{y(!x)},v=()=>{p&&(p.pause(),p.currentTime=0),e()};return w.jsxs("div",{className:"w-full h-full relative bg-black",children:[w.jsx(sc,{ref:t,gameEngine:n.current}),w.jsx(Bd,{score:o,survivalTime:u,isGameOver:L,isPaused:x,isMuted:h,onRestart:a,onPause:d,onMute:S,onQuit:v,powerUps:((k=n.current)==null?void 0:k.getPowerUpStatus())||{speedBoost:0,invincibility:0,freeze:0}})]})},qd=({onBack:e})=>{const{highScore:t,bestTime:n,gamesPlayed:r,totalScore:l}=ac(),i=r>0?Math.round(l/r):0,o=u=>{const s=Math.floor(u/60),c=u%60;return`${s}:${c.toString().padStart(2,"0")}`};return w.jsxs("div",{className:"w-full h-full flex flex-col items-center justify-center bg-black text-white px-4",children:[w.jsx("div",{className:"text-center mb-8",children:w.jsx("h1",{className:"text-4xl font-bold text-green-400 mb-4",children:"STATISTICS"})}),w.jsxs("div",{className:"flex flex-col gap-6 w-full max-w-sm text-center",children:[w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:t}),w.jsx("div",{className:"text-gray-300 text-lg",children:"HIGH SCORE"})]}),w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:o(n)}),w.jsx("div",{className:"text-gray-300 text-lg",children:"BEST TIME"})]}),w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:r}),w.jsx("div",{className:"text-gray-300 text-lg",children:"GAMES PLAYED"})]}),w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:i}),w.jsx("div",{className:"text-gray-300 text-lg",children:"AVG SCORE"})]})]}),w.jsx("div",{className:"mt-8 w-full max-w-sm",children:w.jsx("button",{onClick:e,className:"w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors duration-200 border-2 border-gray-400",children:"EXIT STATISTICS"})})]})};function bd(){const[e,t]=Z.useState("home"),{setBackgroundMusic:n,setHitSound:r,setSuccessSound:l}=nl();Z.useEffect(()=>{const u=new Audio("Betterbackground.mp3"),s=new Audio("Betterhit.mp3"),c=new Audio("Bettersuccess.mp3");u.loop=!0,u.volume=.3,n(u),r(s),l(c)},[n,r,l]);const i=u=>{t(u)},o=()=>{t("home")};return w.jsxs("div",{className:"w-full h-full bg-black overflow-hidden",children:[e==="home"&&w.jsx(Ud,{onStartGame:()=>i("game"),onShowStatistics:()=>i("statistics")}),e==="game"&&w.jsx(Jd,{onGameEnd:o}),e==="statistics"&&w.jsx(qd,{onBack:()=>i("home")})]})}uc(document.getElementById("root")).render(w.jsx(bd,{}));
+const Jd=({onGameEnd:e})=>{var k;const t=Z.useRef(null),n=Z.useRef(null),r=Z.useRef(null),l=Z.useRef(),i=Z.useRef(!1),{score:o,survivalTime:u,isGameOver:s,resetGame:c}=jr(),{updateStatistics:m}=ac(),{backgroundMusic:p,isMuted:h,toggleMute:S}=nl(),[x,y]=Z.useState(!1),[L,f]=Z.useState(!1);Z.useEffect(()=>{const C=t.current;if(!C)return;const _=new Kd(C);n.current=_;const P=new Zd(C);return r.current=P,console.log("Game initialized"),()=>{l.current&&cancelAnimationFrame(l.current)}},[]),Z.useEffect(()=>{i.current=x,p&&!h&&!x&&!s?p.play().catch(console.log):p&&p.pause()},[p,h,x,s]),Z.useEffect(()=>{s&&!L&&(f(!0),m(o,u),p&&(p.pause(),p.currentTime=0))},[s,L,o,u,m,p]),Z.useEffect(()=>{if(!n.current||!r.current)return;let C=performance.now();const _=P=>{const U=Math.min(P-C,100);if(C=P,!i.current&&!s&&n.current&&r.current){const M=r.current.getDirection();n.current.update(U,M),n.current.render()}s||(l.current=requestAnimationFrame(_))};return l.current=requestAnimationFrame(_),()=>{l.current&&cancelAnimationFrame(l.current)}},[s]);
+const a = () => {
+  f(false); // unpause
+  c(); // reset game state in store
+  if (n.current) {
+    n.current.reset(); // reset game engine state
+  }
+  p && !h && (p.currentTime = 0, p.play().catch(console.log));
+};
+d=()=>{y(!x)},v=()=>{p&&(p.pause(),p.currentTime=0),e()};return w.jsxs("div",{className:"w-full h-full relative bg-black",children:[w.jsx(sc,{ref:t,gameEngine:n.current}),w.jsx(Bd,{score:o,survivalTime:u,isGameOver:L,isPaused:x,isMuted:h,onRestart:a,onPause:d,onMute:S,onQuit:v,powerUps:((k=n.current)==null?void 0:k.getPowerUpStatus())||{speedBoost:0,invincibility:0,freeze:0}})]})},qd=({onBack:e})=>{const{highScore:t,bestTime:n,gamesPlayed:r,totalScore:l}=ac(),i=r>0?Math.round(l/r):0,o=u=>{const s=Math.floor(u/60),c=u%60;return`${s}:${c.toString().padStart(2,"0")}`};return w.jsxs("div",{className:"w-full h-full flex flex-col items-center justify-center bg-black text-white px-4",children:[w.jsx("div",{className:"text-center mb-8",children:w.jsx("h1",{className:"text-4xl font-bold text-green-400 mb-4",children:"STATISTICS"})}),w.jsxs("div",{className:"flex flex-col gap-6 w-full max-w-sm text-center",children:[w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:t}),w.jsx("div",{className:"text-gray-300 text-lg",children:"HIGH SCORE"})]}),w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:o(n)}),w.jsx("div",{className:"text-gray-300 text-lg",children:"BEST TIME"})]}),w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:r}),w.jsx("div",{className:"text-gray-300 text-lg",children:"GAMES PLAYED"})]}),w.jsxs("div",{children:[w.jsx("div",{className:"text-4xl font-bold text-cyan-400 mb-1",children:i}),w.jsx("div",{className:"text-gray-300 text-lg",children:"AVG SCORE"})]})]}),w.jsx("div",{className:"mt-8 w-full max-w-sm",children:w.jsx("button",{onClick:e,className:"w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors duration-200 border-2 border-gray-400",children:"EXIT STATISTICS"})})]})};function bd(){const[e,t]=Z.useState("home"),{setBackgroundMusic:n,setHitSound:r,setSuccessSound:l}=nl();Z.useEffect(()=>{const u=new Audio("Betterbackground.mp3"),s=new Audio("Betterhit.mp3"),c=new Audio("Bettersuccess.mp3");u.loop=!0,u.volume=.3,n(u),r(s),l(c)},[n,r,l]);const i=u=>{t(u)},o=()=>{t("home")};return w.jsxs("div",{className:"w-full h-full bg-black overflow-hidden",children:[e==="home"&&w.jsx(Ud,{onStartGame:()=>i("game"),onShowStatistics:()=>i("statistics")}),e==="game"&&w.jsx(Jd,{onGameEnd:o}),e==="statistics"&&w.jsx(qd,{onBack:()=>i("home")})]})}uc(document.getElementById("root")).render(w.jsx(bd,{}));
 window.bgMusic = u;
 window.hitSound = s;
 window.successSound = c;
